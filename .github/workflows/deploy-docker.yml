@@ -1,0 +1,57 @@
+name: Docker Push
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  check_date:
+    runs-on: ubuntu-latest
+    name: Check latest commit
+    outputs:
+      should_run: ${{ steps.should_run.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v3
+        with: 
+          ref: main
+      - name: Print latest Commit
+        run: git rev-parse main
+
+      - id: should_run
+        continue-on-error: true
+        name: Check latest Commit is less than a week
+        if: ${{ github.event_name == 'schedule' }}
+        run: test -z $(git rev-list --after="1 week"  main) && echo "::set-output name=should_run::false"
+
+  push:
+    needs: check_date
+    if: ${{ needs.check_date.outputs.should_run != 'false' }}
+    
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Set up BuildX
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          docker buildx create --name multiarch --driver docker-container --use
+          docker buildx inspect --bootstrap
+      
+      - name: Log into Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+      - name: Build and Push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: "ghcr.io/${{ github.repository_owner }}/pantalaimon:latest"
