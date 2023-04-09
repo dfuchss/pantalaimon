@@ -1,7 +1,7 @@
 pantalaimon (Fork)
 ===========
 This fork aims to provide a docker image.
-Therefore, it uses a modified version of the original Dockerfile to build the image from scratch.
+Therefore, it builds the image from scratch via GitHub Actions.
 
 
 pantalaimon
